@@ -2,7 +2,7 @@
 
 Python deletion auditing at each request's `audit_at`, with grounded identity links, scoped evidence, policy decisions, and ordered remediation/verification.
 
-Current stage: a runnable development pipeline and reviewable PR stack. The latest local diagnostic resolved 375/518 cases. Unsupported cases remain explicit; no final 518-row submission has been produced. Paid model inference is disabled.
+Current stage: a runnable development pipeline and reviewable PR stack. The latest local diagnostic resolved 380/518 cases. Unsupported cases remain explicit; no final 518-row submission has been produced. Paid model inference is disabled.
 
 ## Setup
 

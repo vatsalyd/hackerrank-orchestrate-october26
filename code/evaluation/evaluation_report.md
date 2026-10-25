@@ -4,10 +4,10 @@ Compared predictions or diagnostic decisions against the 32 public sample answer
 
 | Metric | Result |
 | --- | ---: |
-| Case deletion-status accuracy | 65.62% (21/32) |
+| Case deletion-status accuracy | 68.75% (22/32) |
 | Exact step precision | 66.67% |
-| Exact step recall | 50.78% |
-| Positional field accuracy | 59.19% (837/1414) |
+| Exact step recall | 51.81% |
+| Positional field accuracy | 60.40% (854/1414) |
 | Exact ordered sequence accuracy | 15.62% (5/32) |
 
 Exact steps compare all seven fields with multiplicity. Field accuracy compares seven fields at each array position, counting missing/extra positions as incorrect. Sequence accuracy requires identical ordered arrays. Case accuracy compares status alone.
@@ -22,7 +22,7 @@ The CLI integration test creates three independent fictional requests and partic
 
 Additional behavioral tests cover historical email aliases, post-cutoff evidence, independent replica state, retained tombstones, expired retention, unrelated workflow timestamps, strict output fields, model caching, and paid-model rejection. These fixtures use only fictional `example.test` identities and do not copy public answer rows.
 
-Verified suite: 22 tests passed during this evaluation invocation.
+Verified suite: 23 tests passed during this evaluation invocation.
 
 ## Failures and improvements
 
@@ -35,7 +35,7 @@ Development fixes include normalizing six log layouts, joining identifiers throu
 - case_06: 2 expected steps missing; 1 extra/different steps.
 - case_07: 4 expected steps missing; 6 extra/different steps.
 - case_08: 2 expected steps missing; 2 extra/different steps.
-- case_09: 5 expected steps missing; 0 extra/different steps.
+- case_09: 3 expected steps missing; 1 extra/different steps.
 - case_10: 2 expected steps missing; 1 extra/different steps.
 - case_12: 1 expected steps missing; 2 extra/different steps.
 - case_14: 5 expected steps missing; 0 extra/different steps.
@@ -60,4 +60,6 @@ Full-dataset hidden accuracy is unavailable and is not inferred from valid CSV s
 
 ## Current full-dataset coverage
 
-The local diagnostic processed all 94 evidence files and extracted 3000 observations. It resolved 375/518 requests and withheld 143 unsupported decisions. No completed submission is claimed.
+The local diagnostic processed all 94 evidence files and extracted 3035 observations. It resolved 380/518 requests and withheld 138 unsupported decisions. No completed submission is claimed.
+
+The final review fixed SQLite INTEGER booleans and applied declared per-system snapshot times; this recovered five additional supported decisions without using workflow success as proof.

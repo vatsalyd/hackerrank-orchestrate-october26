@@ -64,10 +64,10 @@ def record_state(record, category):
         return "PRESENT" if record["hits"] else "ABSENT"
     if category == "DATA_FLOW":
         flag = record.get("enabled")
-        return "ACTIVE" if flag is True else "DISABLED" if flag is False else "UNKNOWN"
+        return ("ACTIVE" if flag == 1 else "DISABLED") if type(flag) in {bool,int} and flag in (0,1) else "UNKNOWN"
     if category == "BACKUP_ARCHIVE":
         flag = record.get("restore_allowed")
-        return "ACTIVE" if flag is True else "BLOCKED" if flag is False else "UNKNOWN"
+        return ("ACTIVE" if flag == 1 else "BLOCKED") if type(flag) in {bool,int} and flag in (0,1) else "UNKNOWN"
     if category in {"ANALYTICS_PROFILE", "PRODUCT_TELEMETRY", "SUPPORT_MESSAGE", "ACCOUNT_TOMBSTONE", "EMAIL_DELIVERY_LOG"}:
         flat = flattened(record)
         keys = {"email", "phone", "email_hash", "name", "full_name", "display_name", "requester_email", "requester_phone", "requester_name"}
@@ -169,7 +169,9 @@ class Extractor:
             (sqlite3.SQLITE_ATTACH, sqlite3.SQLITE_DETACH) else sqlite3.SQLITE_OK)
         try:
             connection.executescript(sql)
-            for (table,) in connection.execute("SELECT name FROM sqlite_master WHERE type='table'"):
+            tables = [name for (name,) in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+            scopes = dict(connection.execute("SELECT origin_system,captured_at FROM snapshot_scope")) if "snapshot_scope" in tables else {}
+            for table in tables:
                 quoted = '"' + table.replace('"', '""') + '"'
                 cursor = connection.execute(f"SELECT * FROM {quoted}")
                 columns = [item[0] for item in cursor.description]
@@ -191,13 +193,15 @@ class Extractor:
                     system, category = resource_kind(records[0]["resource_id"])
                 else:
                     continue
-                self.tables.append(TableSnapshot(manifest["file_id"], manifest["captured_at"], manifest["captured_at"],
-                    system, category, table, frozenset(row["resource_id"] for row in records)))
+                observed_at = scopes.get(system,manifest["captured_at"])
+                if not scopes or system in scopes:
+                    self.tables.append(TableSnapshot(manifest["file_id"], manifest["captured_at"], observed_at,
+                        system, category, table, frozenset(row["resource_id"] for row in records)))
                 for i, row in enumerate(records):
                     row_system = row.get("system", system)
                     row_category = row.get("record_type", category)
                     self.add(manifest, row_system, row["resource_id"], row_category, record_state(row, row_category), row,
-                             row.get("recorded_at", manifest["captured_at"]),
+                             row.get("recorded_at", observed_at),
                              scope=table, location=f"{table}:row:{i + 1}", strength=4)
         finally:
             connection.close()

@@ -46,3 +46,15 @@ class ExtractionTest(unittest.TestCase):
             extractor.sql_file(path,{'file_id':'e','captured_at':'2026-01-01T00:00:00Z'})
             self.assertEqual(extractor.observations[0].category,'ANALYTICS_PROFILE')
             self.assertEqual(extractor.observations[0].state,'ANONYMIZED')
+
+    def test_sql_integer_flags_preserve_flow_and_restore_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'snapshot.sql'
+            path.write_text("CREATE TABLE connector_subscriptions(resource_id TEXT,enabled INTEGER);"
+                "INSERT INTO connector_subscriptions VALUES('data_flow_x',1);"
+                "CREATE TABLE backup_restore_entries(resource_id TEXT,restore_allowed INTEGER);"
+                "INSERT INTO backup_restore_entries VALUES('backup_x',0);",encoding='utf-8')
+            extractor=Extractor(SimpleNamespace())
+            extractor.sql_file(path,{'file_id':'e','captured_at':'2026-01-01T00:00:00Z'})
+            self.assertEqual([(o.category,o.state) for o in extractor.observations],
+                [('DATA_FLOW','ACTIVE'),('BACKUP_ARCHIVE','BLOCKED')])
