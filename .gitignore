@@ -13,3 +13,4 @@ agent-trace.zip
 evaluation_runs/
 code/evaluation/*.json
 evaluation_diagnosis.tmp
+log.txt

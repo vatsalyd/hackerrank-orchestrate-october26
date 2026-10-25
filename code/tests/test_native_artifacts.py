@@ -17,6 +17,10 @@ class NativeArtifactsTest(unittest.TestCase):
         self.assertEqual(len(rows),2)
         self.assertTrue(all(not row['identifiers'] for row in rows))
 
+    def test_related_audit_link_does_not_override_primary_account(self):
+        rows=list(native_records('Customer details\naccount_123 person@example.test\nRelated records\naudit_record_987'))
+        self.assertEqual([row['resource_id'] for row in rows],['account_123'])
+
     def test_legal_register_preserves_literal_order_reference(self):
         rows=list(native_records('ORD-20261234 | user_7 | Dispute | Retain until 04 May 2033'))
         self.assertEqual(rows[0]['resource_id'],'ORD-20261234')
