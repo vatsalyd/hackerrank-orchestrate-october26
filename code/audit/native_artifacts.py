@@ -53,12 +53,13 @@ def native_records(text: str):
         ("support", "SUPPORT_ATTACHMENT" if "attachment" in lower or "correction request" in lower else "SUPPORT_MESSAGE",
          "support_platform", "PRESENT" if "attachment" in lower or "correction request" in lower else "IDENTIFIABLE"),
     ]
-    selected = None
+    candidates = []
     for prefix, category, system, state in kinds:
         refs = list(dict.fromkeys(re.findall(r"\b" + prefix + r"_\d+\b", clean)))
         if refs:
-            selected = refs, category, system, state
-            break
+            first = re.search(r"\b" + prefix + r"_\d+\b", clean).start()
+            candidates.append((first, refs, category, system, state))
+    selected = min(candidates, key=lambda row:row[0])[1:] if candidates else None
     if selected:
         refs, category, system, state = selected
         for ref in refs:
