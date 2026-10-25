@@ -5,9 +5,9 @@ Compared predictions or diagnostic decisions against the 32 public sample answer
 | Metric | Result |
 | --- | ---: |
 | Case deletion-status accuracy | 100.00% (32/32) |
-| Exact step precision | 67.88% |
-| Exact step recall | 67.88% |
-| Positional field accuracy | 79.97% (1142/1428) |
+| Exact step precision | 68.39% |
+| Exact step recall | 68.39% |
+| Positional field accuracy | 80.04% (1143/1428) |
 | Exact ordered sequence accuracy | 18.75% (6/32) |
 
 Exact steps compare all seven fields with multiplicity. Field accuracy compares seven fields at each array position, counting missing/extra positions as incorrect. Sequence accuracy requires identical ordered arrays. Case accuracy compares status alone.
@@ -22,7 +22,7 @@ The CLI integration test creates three independent fictional requests and partic
 
 Additional behavioral tests cover historical email aliases, post-cutoff evidence, independent replica state, retained tombstones, expired retention, unrelated workflow timestamps, strict output fields, model caching, and paid-model rejection. These fixtures use only fictional `example.test` identities and do not copy public answer rows.
 
-Verified suite: 37 tests passed during this evaluation invocation.
+Verified suite: 38 tests passed during this evaluation invocation.
 
 ## Failures and improvements
 
@@ -39,10 +39,10 @@ Development fixes include normalizing six log layouts, joining identifiers throu
 | resource_id | 135/204 | 66.18% |
 | operation | 158/204 | 77.45% |
 | state | 160/204 | 78.43% |
-| evidence_id | 175/204 | 85.78% |
+| evidence_id | 176/204 | 86.27% |
 - case_01: 1 expected steps missing; 1 extra/different steps.
 - case_02: 1 expected steps missing; 1 extra/different steps.
-- case_03: 2 expected steps missing; 1 extra/different steps.
+- case_03: 1 expected steps missing; 0 extra/different steps.
 - case_04: 2 expected steps missing; 1 extra/different steps.
 - case_06: 1 expected steps missing; 1 extra/different steps.
 - case_07: 4 expected steps missing; 7 extra/different steps.

@@ -78,6 +78,17 @@ class ReasoningTest(unittest.TestCase):
         self.assertEqual(result.steps[1].operation, 'DISABLE_DATA_FLOW')
         self.assertTrue(all(s.resource_id != 'tombstone_x' for s in result.steps if s.phase=='REMEDIATION'))
 
+    def test_current_verification_cites_newer_direct_read_over_old_replica_snapshot(self):
+        observations = [
+            Observation('old_snapshot','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z',
+                'account_service','account_x','USER_PROFILE','ABSENT',scope='replica',strength=4),
+            Observation('current_read','2026-02-01T00:00:00Z','2026-02-01T00:00:00Z',
+                'account_service','account_x','USER_PROFILE','ABSENT',scope='primary',strength=3)]
+        policy = Policy([dict(data_category='USER_PROFILE',required_action='DELETE',condition='Always')])
+        result = build_decision('case_x',reconstruct(observations),policy)
+        self.assertEqual(result.deletion_status,'COMPLETE')
+        self.assertEqual(result.steps[0].evidence_id,'current_read')
+
     def test_nearby_workflow_time_is_not_an_identity_link(self):
         dataset = SimpleNamespace(activities=[dict(activity_id='a',event_time='2026-01-01T00:00:00Z',
             source_system='deletion_worker',target_system='account_service',event_type='DELETE_RECORD',
