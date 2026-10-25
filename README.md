@@ -2,7 +2,7 @@
 
 Python deletion auditing at each request's `audit_at`, with grounded identity links, scoped evidence, policy decisions, and ordered remediation/verification.
 
-Current stage: all 518 evaluation requests produce schema-valid draft predictions. Public sample status accuracy is 32/32, positional field accuracy is 82.59%, and exact sequence accuracy is 7/32. Reference alignment remains work in progress. Paid model inference is disabled.
+Submission candidate: all 518 evaluation requests produce schema-valid predictions. Public sample status accuracy is 32/32, positional field accuracy is 82.59%, and exact sequence accuracy is 7/32. The evaluation report records remaining reference and coverage limitations. Paid model inference is disabled.
 
 ## Setup
 
@@ -90,6 +90,8 @@ Packaging refuses missing/incomplete outputs or unfinished reports. The archive 
 - Keep unresolved identity, state, scope, or policy questions visible rather than fabricating evidence.
 
 Design rationale: `docs/FOUNDATION.md`. Increment notes: `docs/prs/`.
+
+Manual upload guide: `docs/SUBMISSION.md`. Interview preparation: `docs/INTERVIEW.md`.
 
 Challenge and submission: https://www.hackerrank.com/contests/hackerrank-orchestrate-october26/challenges/ghost-data-still-exists
 

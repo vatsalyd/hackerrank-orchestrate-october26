@@ -26,7 +26,7 @@ An available subject-bearing archive in a live recovery manager with restore/dri
 
 Screenshot identifiers are bound to table rows or selected detail panels using local OCR geometry. Activity history does not establish current ownership. Neither unbound native transcript text nor model-returned raw fields can override those subject bindings. Ambiguous flat transcripts remain unlinked until another eligible source supplies the connection.
 
-A successful full run validates schema, allowed operations/states, citation times, step numbers, phase order, and request IDs. Format and grounding checks do not prove hidden accuracy. The artifacts remain drafts while reference and sequence alignment is improved.
+A successful full run validates schema, allowed operations/states, citation times, step numbers, phase order, and request IDs. Format and grounding checks do not prove hidden accuracy. These reference and sequence limitations are preserved in the submitted candidate.
 '''
 
 
