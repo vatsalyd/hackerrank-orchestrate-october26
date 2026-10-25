@@ -21,7 +21,7 @@ class Auditor:
         if not deletion_authorized:
             return Decision(case_id=request.case_id, deletion_status="NOT_APPLICABLE", steps=[]), {}
         user, aliases = self.identity.resolve(request.email, request.audit_at)
-        observations, links = self.index.retrieve(aliases, request.audit_at, request)
+        observations, links = self.index.retrieve(aliases, request.audit_at, request,subject_reference=user)
         if not observations:
             raise UnresolvedCase("No eligible resource-state evidence for this subject")
         resolved = reconstruct(observations)

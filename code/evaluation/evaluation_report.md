@@ -4,11 +4,11 @@ Compared predictions or diagnostic decisions against the 32 public sample answer
 
 | Metric | Result |
 | --- | ---: |
-| Case deletion-status accuracy | 68.75% (22/32) |
-| Exact step precision | 66.67% |
-| Exact step recall | 51.81% |
-| Positional field accuracy | 60.40% (854/1414) |
-| Exact ordered sequence accuracy | 15.62% (5/32) |
+| Case deletion-status accuracy | 100.00% (32/32) |
+| Exact step precision | 67.88% |
+| Exact step recall | 67.88% |
+| Positional field accuracy | 79.97% (1142/1428) |
+| Exact ordered sequence accuracy | 18.75% (6/32) |
 
 Exact steps compare all seven fields with multiplicity. Field accuracy compares seven fields at each array position, counting missing/extra positions as incorrect. Sequence accuracy requires identical ordered arrays. Case accuracy compares status alone.
 
@@ -22,44 +22,61 @@ The CLI integration test creates three independent fictional requests and partic
 
 Additional behavioral tests cover historical email aliases, post-cutoff evidence, independent replica state, retained tombstones, expired retention, unrelated workflow timestamps, strict output fields, model caching, and paid-model rejection. These fixtures use only fictional `example.test` identities and do not copy public answer rows.
 
-Verified suite: 23 tests passed during this evaluation invocation.
+Verified suite: 37 tests passed during this evaluation invocation.
 
 ## Failures and improvements
 
-Development fixes include normalizing six log layouts, joining identifiers through preceding trace lines, rejecting post-cutoff evidence, distinguishing direct reads from operation claims, and preserving separate replica scopes. Sample sequence mismatches: 27. A correct status can still have missing records, different evidence citations, or incorrect verification coverage.
+Development fixes include normalizing six log layouts, joining identifiers through preceding trace lines, rejecting post-cutoff evidence, distinguishing direct reads from operation claims, and preserving separate replica scopes. Sample sequence mismatches: 26. A correct status can still have missing records, different evidence citations, or incorrect verification coverage.
 
-- case_01: 1 expected steps missing; 0 extra/different steps.
-- case_02: 1 expected steps missing; 0 extra/different steps.
+
+## Field breakdown
+
+| Field | Matching positions | Accuracy |
+| --- | ---: | ---: |
+| step_no | 182/204 | 89.22% |
+| phase | 176/204 | 86.27% |
+| system_id | 156/204 | 76.47% |
+| resource_id | 135/204 | 66.18% |
+| operation | 158/204 | 77.45% |
+| state | 160/204 | 78.43% |
+| evidence_id | 175/204 | 85.78% |
+- case_01: 1 expected steps missing; 1 extra/different steps.
+- case_02: 1 expected steps missing; 1 extra/different steps.
 - case_03: 2 expected steps missing; 1 extra/different steps.
-- case_04: 2 expected steps missing; 0 extra/different steps.
-- case_06: 2 expected steps missing; 1 extra/different steps.
-- case_07: 4 expected steps missing; 6 extra/different steps.
-- case_08: 2 expected steps missing; 2 extra/different steps.
-- case_09: 3 expected steps missing; 1 extra/different steps.
-- case_10: 2 expected steps missing; 1 extra/different steps.
+- case_04: 2 expected steps missing; 1 extra/different steps.
+- case_06: 1 expected steps missing; 1 extra/different steps.
+- case_07: 4 expected steps missing; 7 extra/different steps.
+- case_08: 1 expected steps missing; 2 extra/different steps.
+- case_09: 3 expected steps missing; 2 extra/different steps.
+- case_10: 1 expected steps missing; 1 extra/different steps.
 - case_12: 1 expected steps missing; 2 extra/different steps.
-- case_14: 5 expected steps missing; 0 extra/different steps.
 - case_15: 5 expected steps missing; 8 extra/different steps.
 - case_17: 2 expected steps missing; 5 extra/different steps.
-- case_18: 6 expected steps missing; 4 extra/different steps.
-- case_20: 4 expected steps missing; 2 extra/different steps.
-- case_21: 3 expected steps missing; 0 extra/different steps.
-- case_22: 4 expected steps missing; 3 extra/different steps.
-- case_23: 4 expected steps missing; 2 extra/different steps.
+- case_18: 5 expected steps missing; 4 extra/different steps.
+- case_20: 3 expected steps missing; 2 extra/different steps.
+- case_21: 3 expected steps missing; 3 extra/different steps.
+- case_22: 1 expected steps missing; 1 extra/different steps.
+- case_23: 2 expected steps missing; 1 extra/different steps.
 - case_24: 1 expected steps missing; 1 extra/different steps.
-- case_25: 3 expected steps missing; 0 extra/different steps.
-- case_26: 6 expected steps missing; 0 extra/different steps.
-- case_27: 6 expected steps missing; 0 extra/different steps.
-- case_28: 6 expected steps missing; 0 extra/different steps.
-- case_29: 6 expected steps missing; 5 extra/different steps.
-- case_30: 6 expected steps missing; 4 extra/different steps.
-- case_31: 3 expected steps missing; 0 extra/different steps.
-- case_32: 3 expected steps missing; 2 extra/different steps.
+- case_25: 2 expected steps missing; 1 extra/different steps.
+- case_26: 4 expected steps missing; 3 extra/different steps.
+- case_27: 4 expected steps missing; 3 extra/different steps.
+- case_28: 4 expected steps missing; 3 extra/different steps.
+- case_29: 2 expected steps missing; 2 extra/different steps.
+- case_30: 5 expected steps missing; 4 extra/different steps.
+- case_31: 1 expected steps missing; 1 extra/different steps.
+- case_32: 1 expected steps missing; 1 extra/different steps.
 
-Full-dataset hidden accuracy is unavailable and is not inferred from valid CSV structure. See the usage report for the latest full-dataset diagnostic; a successful complete prediction run is still required.
+Full-dataset hidden accuracy is unavailable and is not inferred from valid CSV structure. See the usage report for the measured full run.
 
-## Current full-dataset coverage
+## Full run and coverage model
 
-The local diagnostic processed all 94 evidence files and extracted 3035 observations. It resolved 380/518 requests and withheld 138 unsupported decisions. No completed submission is claimed.
+The completed run produced exactly 518 sorted prediction rows. All 375 distinct evaluation request texts were interpreted through free OpenRouter models in bounded batches; repeated text was classified once. The final serialization reused those cached interpretations and performed no new cloud request. The usage report attributes the original preprocessing responses and all reported tokens.
 
-The final review fixed SQLite INTEGER booleans and applied declared per-system snapshot times; this recovered five additional supported decisions without using workflow success as proof.
+Negative profile checks use complete dedicated SQL snapshots or global assurance exports without filter, pagination, truncation, or partial-scope metadata. All positive profile rows must carry a usable subject identifier. This is a declared-namespace completeness assumption and requires review when adapting to other exporters. Missing matches in an arbitrary file or a filtered query do not establish absence.
+
+When a deleted row's physical resource ID is unrecoverable, negative verification uses the supplied stable user reference as an indexed lookup target. Diagnostics mark these as `subject_lookup`; these references are never used to synthesize destructive record actions. The canonical public answers often use historical physical IDs, contributing to resource-ID and sequence mismatches.
+
+An available subject-bearing archive in a live recovery manager with restore/drill context is treated as a potential restore path until blocked. This does not assert an unshown operator permission flag, and future restore events are excluded by the cutoff.
+
+All 518 decisions pass schema, allowed-operation/state, citation-time, step-number, phase-order, and request-ID checks. This is validation of format and grounding rules, not a claim of hidden-test accuracy. The artifacts remain drafts while reference/sequence alignment is improved.

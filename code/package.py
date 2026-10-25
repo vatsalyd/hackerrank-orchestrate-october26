@@ -34,10 +34,14 @@ def main():
     destination=root/'code.zip'
     with zipfile.ZipFile(destination,'w',zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(files): archive.write(path,path.relative_to(root).as_posix())
+        # Keep both the starter layout and the exact report paths in the submission contract.
+        for report in ('evaluation_report.md','usage_report.md'):
+            archive.write(root/'code/evaluation'/report,'evaluation/'+report)
     with zipfile.ZipFile(destination) as archive:
         assert archive.testzip() is None
         assert all(not name.startswith('dataset/') for name in archive.namelist())
-    print(f'Created {destination.name}: {len(files)} files. Upload log.txt separately as the transcript.')
+        count=len(archive.namelist())
+    print(f'Created {destination.name}: {count} files. Upload log.txt separately as the transcript.')
 
 
 if __name__=='__main__':

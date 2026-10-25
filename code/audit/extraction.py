@@ -89,17 +89,21 @@ class TableSnapshot:
     category: str
     scope: str
     resources: frozenset[str]
+    subject_identifiers: frozenset[str] = frozenset()
+    supports_subject_query: bool = False
 
 
 class Extractor:
-    def __init__(self, dataset, model=None, cache=None):
+    def __init__(self, dataset, model=None, cache=None, artifact_mode='hybrid'):
         self.dataset, self.model = dataset, model
         self.observations = []
         self.tables = []
         self.coverage = {}
         self.artifact_text = {}
         self.skipped = []
+        self.issues = []
         self.cache = cache or Path(".cache")
+        self.artifact_mode=artifact_mode
 
     def extract(self, structured_only=False):
         for manifest in self.dataset.manifest:
@@ -146,6 +150,22 @@ class Extractor:
             for i, item in enumerate(value):
                 self.json_file(item, manifest, context, f"{location}[{i}]")
         elif isinstance(value, dict):
+            # The gateway declares an unfiltered global service export. Treat its
+            # completed profile read set as the declared namespace; filtered,
+            # paginated or unattributable positive rows cannot support absence.
+            service=value.get('service_exports',{}).get('account_service',{})
+            lookups=service.get('profile_lookups')
+            partial_keys={'filter','filters','query','cursor','next_page','next_cursor','partial','truncated'}
+            if (value.get('region')=='global' and value.get('source') and isinstance(lookups,list)
+                and not (partial_keys & set(value)) and not (partial_keys & set(service))):
+                complete=bool(lookups) and not any(partial_keys & set(row) for row in lookups) and all(
+                    row.get('status_code')==404 and row.get('profile') is None or
+                    row.get('status_code')==200 and bool(identifiers(row.get('profile'))) for row in lookups)
+                subject_values=frozenset().union(*(identifiers(row.get('profile')) for row in lookups))
+                observed=max((row.get('observed_at',value.get('exported_at',manifest['captured_at'])) for row in lookups),default=manifest['captured_at'])
+                self.tables.append(TableSnapshot(manifest['file_id'],manifest['captured_at'],observed,
+                    'account_service','USER_PROFILE','global_service_export.profile_lookups',
+                    frozenset(row['resource_id'] for row in lookups),subject_values,complete))
             for key in ("collection", "data_store", "captured_at"):
                 if key in value:
                     context[key] = value[key]
@@ -195,8 +215,14 @@ class Extractor:
                     continue
                 observed_at = scopes.get(system,manifest["captured_at"])
                 if not scopes or system in scopes:
+                    subject_fields={'user_id','customer_reference','email','phone','email_hash'}
+                    primary_table=table in {'customer_profiles','customer_profiles_primary'}
+                    queryable=primary_table and bool(subject_fields & set(columns)) and all(
+                        identifiers({key:row.get(key) for key in subject_fields}) for row in records)
                     self.tables.append(TableSnapshot(manifest["file_id"], manifest["captured_at"], observed_at,
-                        system, category, table, frozenset(row["resource_id"] for row in records)))
+                        system, category, table, frozenset(row["resource_id"] for row in records),
+                        frozenset().union(*(identifiers({key:row.get(key) for key in subject_fields}) for row in records)),
+                        queryable))
                 for i, row in enumerate(records):
                     row_system = row.get("system", system)
                     row_category = row.get("record_type", category)
@@ -308,26 +334,48 @@ class Extractor:
                      {"subject_reference": subject}, at, location=f"line:{number}")
 
     def artifact_file(self, path, manifest):
-        if self.model is None:
-            from .native_artifacts import artifact_text, native_records
-            text = artifact_text(path, self.cache)
+        from .native_artifacts import artifact_text,native_records
+        text=artifact_text(path,self.cache)
+        native=list(native_records(text))
+        ambiguous=not native or any(record['state']=='UNKNOWN' or (
+            record['category']=='BACKUP_ARCHIVE' and record['state']=='PRESENT'
+            and not record['fields'].get('recovery_archive_available')) for record in native)
+        use_model=self.model is not None and self.artifact_mode!='native' and (self.artifact_mode=='model' or ambiguous)
+        if not use_model:
             self.artifact_text[manifest["file_id"]] = text
-            for number, record in enumerate(native_records(text),1):
+            for number, record in enumerate(native,1):
                 self.add(manifest, record["system_id"], record["resource_id"], record["category"], record["state"],
                          record["fields"], location=f"native-artifact:{number}", extra_ids=record["identifiers"])
             return
         data = {"capture_time": manifest["captured_at"], "source_origin": manifest["origin"]}
+        from .artifact_grounding import literal_resources, ground_records
+        native_text=text
+        data["literal_reference_candidates"]=sorted(literal_resources(native_text))
+        data["native_text"]=native_text
         if path.suffix == ".pdf":
             from pypdf import PdfReader
             data["pages"] = [{"page": i, "text": page.extract_text()} for i, page in enumerate(PdfReader(path).pages, 1)]
-        result = self.model.json("artifact-extraction-v1", ARTIFACT_PROMPT, data, path if path.suffix == ".png" else None)
+        try:
+            result = self.model.json("artifact-extraction-v2", ARTIFACT_PROMPT, data, path if path.suffix == ".png" else None,
+                                     validator=ArtifactResult.model_validate)
+        except ValueError as error:
+            if self.artifact_mode!='hybrid':
+                raise
+            self.issues.append({'evidence_id':manifest['file_id'],'issue':'Free interpretation unavailable; native facts retained',
+                                'reason':str(error)})
+            for number,record in enumerate(native,1):
+                self.add(manifest,record['system_id'],record['resource_id'],record['category'],record['state'],
+                         record['fields'],location=f'native-artifact:{number}',extra_ids=record['identifiers'])
+            return
         result = ArtifactResult.model_validate(result).model_dump()
         self.artifact_text[manifest["file_id"]] = result["text"]
-        for number, record in enumerate(result["records"], 1):
+        records,issues=ground_records(result['records'],native_text,resource_kind,primary_only=path.suffix=='.png')
+        self.issues.extend({'evidence_id':manifest['file_id'],'issue':issue} for issue in issues)
+        for number, record in enumerate(records, 1):
             resource = record["resource_id"]
             default_system, default_category = resource_kind(resource)
-            system = default_system or record.get("system_id")
             category = record.get("category", default_category)
+            system = default_system or next((sys for sys,cat in PREFIXES.values() if cat==category),record.get('system_id'))
             if not system:
                 system = next((sys for sys, cat in PREFIXES.values() if cat == category), "")
             if path.suffix == ".pdf" and normalize(resource) not in normalize(" ".join(page["text"] for page in data["pages"])):

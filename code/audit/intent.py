@@ -36,20 +36,50 @@ def local_intent(text):
     raise UnresolvedCase("Unsupported or ambiguous request language")
 
 
-def classify_requests(requests, model=None):
+def classify_requests(requests, model=None, batch_size=32):
     if model is None:
         return {request.case_id: local_intent(request.request_text) for request in requests}
+    by_text={}
+    for request in requests:
+        by_text.setdefault(request.request_text,[]).append(request)
+    unique=[values[0] for values in by_text.values()]
     results = {}
-    for offset in range(0, len(requests), 32):
-        batch = requests[offset:offset + 32]
+    for offset in range(0,len(unique),batch_size):
+        batch=unique[offset:offset+batch_size]
+        expected={row.case_id for row in batch}
+        def validate_response(values):
+            items=values.get('items',[])
+            if len(items)!=len(batch) or {item.get('id') for item in items}!=expected:
+                raise ValueError('Intent response omitted or duplicated input IDs')
+            if any(type(item.get('delete')) is not bool for item in items):
+                raise ValueError('Intent delete must be a boolean')
         values = model.json("deletion-intent-v1", INTENT_PROMPT,
-                            [{"id": request.case_id, "text": request.request_text} for request in batch])
+                            [{"id": request.case_id, "text": request.request_text} for request in batch],
+                            validator=validate_response)
         items = values["items"]
-        if len(items) != len(batch) or {item["id"] for item in items} != {row.case_id for row in batch}:
-            raise ValueError("Intent response omitted or duplicated input IDs")
+        validate_response(values)
+        texts_by_id={row.case_id:row.request_text for row in batch}
         for item in items:
-            if type(item["delete"]) is not bool:
-                raise ValueError("Intent delete must be a boolean")
-            results[item["id"]] = item["delete"]
-        print(f"Classified {min(offset + 32, len(requests))}/{len(requests)} request texts", flush=True)
+            for request in by_text[texts_by_id[item['id']]]:
+                results[request.case_id]=item['delete']
+        print(f"Classified {min(offset+batch_size,len(unique))}/{len(unique)} unique request texts",flush=True)
+    return results
+
+
+def classify_hybrid_requests(requests,model):
+    """Keep clear English rules local; interpret uncertain/non-English text remotely."""
+    results,pending={},[]
+    for request in requests:
+        text=request.request_text
+        english=bool(re.search(r"\b(?:please|my|me|i|you)\b",text.casefold()))
+        non_ascii_letters=any(character.isalpha() and ord(character)>127 for character in text)
+        if english and not non_ascii_letters:
+            try:
+                results[request.case_id]=local_intent(text)
+                continue
+            except UnresolvedCase:
+                pass
+        pending.append(request)
+    if pending:
+        results.update(classify_requests(pending,model))
     return results

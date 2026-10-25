@@ -66,8 +66,14 @@ def native_records(text: str):
             # Multiple table rows need row-level identity evidence. Catalog links can bind
             # their literal resource IDs later; do not assign every visible email to every row.
             ids = identifiers(clean) if len(refs) == 1 else frozenset()
+            fields={"visible_text":clean}
+            restore_blocked=any(term in lower for term in (
+                'restore blocked','restore access blocked','restore disabled','key destroyed','crypto-erased'))
+            if (category=='BACKUP_ARCHIVE' and not restore_blocked
+                and all(term in lower for term in ('recovery manager','restore success','last drill','archive'))):
+                fields['recovery_archive_available']=True
             yield dict(resource_id=ref, category=category, system_id=system, state=state,
-                       identifiers=ids, fields={"visible_text": clean})
+                       identifiers=ids, fields=fields)
         return
     if "retain until" in lower:
         for line in clean.splitlines():

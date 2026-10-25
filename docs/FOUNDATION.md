@@ -1,6 +1,6 @@
 **Ghost Data Still Exists — Python foundation**
 
-This document records the problem, the observed participant-data structure, and a proposed implementation. The dataset counts below were checked locally on 2026-10-25. The architecture is a recommendation; no audit engine or prediction run has been implemented yet.
+This document records the problem, the observed participant-data structure, and a proposed implementation. The dataset counts below were checked locally on 2026-10-25. This is the original architecture record; the implementation now exists. Consult README.md and the evaluation reports for current measured results and coverage assumptions.
 
 **The problem in everyday terms**
 

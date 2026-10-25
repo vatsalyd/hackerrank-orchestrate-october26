@@ -12,7 +12,7 @@ from audit.llm import ModelClient
 from audit.storage import write_evidence_index
 from audit.engine import Auditor
 from audit.export import write_output
-from audit.intent import classify_requests, local_intent
+from audit.intent import classify_requests,classify_hybrid_requests,local_intent
 from audit.usage import write_usage_report
 from audit.local_intent import classify_local
 
@@ -33,6 +33,10 @@ def main():
     parser.add_argument("--local-intent", action="store_true", help="Use conservative local language rules")
     parser.add_argument("--diagnostics-dir", type=Path, default=root / "evaluation_runs")
     parser.add_argument("--local-python", help="Python executable with optional local Transformers dependencies")
+    parser.add_argument('--artifact-mode',choices=['native','hybrid','model'],default='hybrid',
+                        help='Hybrid uses a free model only for ambiguous artifacts, with native fallback')
+    parser.add_argument('--intent-mode',choices=['model','hybrid'],default='model',
+                        help='Model interprets every distinct request text; hybrid keeps clear English local')
     args = parser.parse_args()
     dataset = Dataset(args.dataset)
     if args.command == "inventory":
@@ -44,25 +48,25 @@ def main():
         model = ModelClient(args.cache, args.online, args.model, max_cost=args.max_cost)
         if args.online and args.provider != "openrouter":
             parser.error("--online requires --provider openrouter; paid providers are not supported")
-        extraction = Extractor(dataset, model if args.provider == "openrouter" else None, args.cache).extract(args.structured_only)
+        requests=dataset.requests(args.sample)
+        intent_errors={}
+        intents=None
+        if args.command!='extract' and not args.local_intent:
+            if args.provider=='local':
+                intents,intent_errors=classify_local(requests,args.cache,model,args.local_python)
+            else:
+                intents=(classify_requests if args.intent_mode=='model' else classify_hybrid_requests)(requests,model)
+        extraction = Extractor(dataset, model if args.provider == "openrouter" else None, args.cache,args.artifact_mode).extract(args.structured_only)
         write_evidence_index(args.cache / "evidence.sqlite3", extraction)
         summary = {"files": len(extraction.coverage), "observations": len(extraction.observations),
             "tables": len(extraction.tables), "zero_observation_files": [key for key, value in extraction.coverage.items() if not value],
-            "skipped_files": extraction.skipped, "model_events": model.events}
+            "skipped_files": extraction.skipped, "issues":extraction.issues, "model_events": model.events}
         (args.cache / "extraction_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
         print(json.dumps({key: value for key, value in summary.items() if key != "model_events"}, indent=2))
         if args.command == "extract":
             return
-        requests = dataset.requests(args.sample)
         if not args.sample and len(requests) != 518:
             raise ValueError("Evaluation dataset must contain exactly 518 requests")
-        intent_errors = {}
-        if args.local_intent:
-            intents = None
-        elif args.provider == "local":
-            intents, intent_errors = classify_local(requests,args.cache,model,args.local_python)
-        else:
-            intents = classify_requests(requests,model)
         auditor, decisions, diagnostics, failures = Auditor(dataset, extraction), [], {}, []
         for request in requests:
             try:

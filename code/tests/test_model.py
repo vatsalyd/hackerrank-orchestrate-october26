@@ -3,6 +3,7 @@ import json
 import sys
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 from unittest.mock import patch
 
@@ -46,3 +47,31 @@ class ModelTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,'OPENROUTER_API_KEY'):
                     client.json('test','Return JSON',{})
                 network.assert_not_called()
+
+    def test_invalid_response_retry_preserves_usage_and_accepts_fenced_json(self):
+        def response(content):
+            return io.BytesIO(json.dumps({'model':'fixture/free','usage':{'prompt_tokens':5,'completion_tokens':2,'total_tokens':7,'cost':0},
+                'choices':[{'finish_reason':'stop','message':{'content':content}}]}).encode())
+        with tempfile.TemporaryDirectory() as directory, patch.dict('os.environ',{'OPENROUTER_API_KEY':'fixture-key'}):
+            client=ModelClient(Path(directory),online=True)
+            with patch('urllib.request.urlopen',side_effect=[response(''),response('```json\n{"ok":true}\n```')]),patch('time.sleep'):
+                self.assertEqual(client.json('test','Return JSON',{}),{'ok':True})
+            self.assertEqual(len(client.events),2)
+            self.assertFalse(client.events[0]['response_valid'])
+            self.assertTrue(client.events[1]['response_valid'])
+            events=(Path(directory)/'model/usage_events.jsonl').read_text().splitlines()
+            self.assertEqual(len(events),2)
+            self.assertNotIn('fixture-key',''.join(events))
+
+    def test_optional_reasoning_repair_keeps_zero_price_guards(self):
+        error=urllib.error.HTTPError('https://openrouter.ai',400,'Bad request',{},
+            io.BytesIO(b'{"error":{"message":"Reasoning is mandatory for this model"}}'))
+        response=io.BytesIO(json.dumps({'model':'fixture:free','usage':{'cost':0},
+            'choices':[{'finish_reason':'stop','message':{'content':'{"ok":true}'}}]}).encode())
+        with tempfile.TemporaryDirectory() as directory,patch.dict('os.environ',{'OPENROUTER_API_KEY':'fixture-key'}):
+            client=ModelClient(Path(directory),online=True)
+            with patch('urllib.request.urlopen',side_effect=[error,response]) as call:
+                self.assertEqual(client.json('test','JSON',{}),{'ok':True})
+            repaired=json.loads(call.call_args_list[1].args[0].data)
+            self.assertNotIn('reasoning',repaired)
+            self.assertEqual(repaired['provider']['max_price'],{'prompt':0,'completion':0,'request':0,'image':0})

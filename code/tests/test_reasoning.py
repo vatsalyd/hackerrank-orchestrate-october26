@@ -2,10 +2,13 @@ import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from audit.identity import IdentityResolver
 from audit.intent import local_intent
+from audit.intent import classify_hybrid_requests
+from audit.intent import classify_requests
 from audit.models import Observation
 from audit.planner import build_decision
 from audit.policy import Policy
@@ -14,6 +17,28 @@ from audit.timeline import EvidenceIndex
 
 
 class ReasoningTest(unittest.TestCase):
+    def test_identical_text_is_interpreted_once_and_mapped_to_each_case(self):
+        requests=[SimpleNamespace(case_id='one',request_text='Please export my data.'),
+                  SimpleNamespace(case_id='two',request_text='Please export my data.')]
+        class FreeModel:
+            def json(self,task,prompt,data,validator):
+                self.count=len(data)
+                result={'items':[{'id':data[0]['id'],'delete':False,'reason':'Export only'}]}
+                validator(result)
+                return result
+        model=FreeModel()
+        self.assertEqual(classify_requests(requests,model),{'one':False,'two':False})
+        self.assertEqual(model.count,1)
+
+    def test_hybrid_intent_uses_free_model_for_uncertain_or_multilingual_text(self):
+        requests=[SimpleNamespace(case_id='english',request_text='Please delete my account.'),
+            SimpleNamespace(case_id='spanish',request_text='No quiero eliminar mi cuenta.'),
+            SimpleNamespace(case_id='export',request_text='Please export my data.')]
+        with patch('audit.intent.classify_requests',return_value={'spanish':False}) as remote:
+            result=classify_hybrid_requests(requests,object())
+        self.assertEqual(result,{'english':True,'export':False,'spanish':False})
+        self.assertEqual([row.case_id for row in remote.call_args.args[0]],['spanish'])
+
     def test_export_and_negation_do_not_authorize_deletion(self):
         self.assertFalse(local_intent('Do not delete my account. Please export my data.'))
         self.assertFalse(local_intent('Unsubscribe me from marketing emails.'))
@@ -69,3 +94,11 @@ class ReasoningTest(unittest.TestCase):
             'legal_archive','legal_hold_x','LEGAL_HOLD_RECORD','PRESENT',raw={'retained_until':'2026-01-15T00:00:00Z'})
         with self.assertRaisesRegex(ValueError,'expired'):
             policy.apply(obs,'2026-02-01T00:00:00Z')
+
+    def test_available_recovery_archive_is_a_restore_risk_without_permission_claim(self):
+        policy=Policy([dict(data_category='BACKUP_ARCHIVE',required_action='RETAIN',condition='Restore can be blocked')])
+        obs=Observation('archive','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z',
+            'backup_service','backup_x','BACKUP_ARCHIVE','PRESENT',raw={'recovery_archive_available':True})
+        treatment=policy.apply(obs)
+        self.assertFalse(treatment.compliant)
+        self.assertEqual(treatment.finding,'REPORT_RESTORE_RISK')
