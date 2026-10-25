@@ -1,6 +1,6 @@
 # Model usage report
 
-Run time (UTC): 2026-10-25T17:46:17.376731+00:00. Requests: 518. Completed decisions: 518. Elapsed seconds: 9.33. Output: `output.csv`.
+Run time (UTC): 2026-10-25T18:00:42.297720+00:00. Requests: 518. Completed decisions: 518. Elapsed seconds: 8.05. Output: `output.csv`.
 
 This report includes model results consumed by this run, including cached preprocessing used to produce its answers. Origin tokens/cost and calls are attributed once per unique response, including invalid responses retried during extraction. New model calls this run: 0. Returned cloud responses this run: 0. Attempted HTTP calls: 0. Cached derivations consumed: 12.
 

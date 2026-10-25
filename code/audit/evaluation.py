@@ -13,6 +13,22 @@ CUSTOM_SCENARIOS = '''The CLI integration test creates three independent fiction
 
 Additional behavioral tests cover historical email aliases, post-cutoff evidence, independent replica state, retained tombstones, expired retention, unrelated workflow timestamps, strict output fields, model caching, and paid-model rejection. These fixtures use only fictional `example.test` identities and do not copy public answer rows.'''
 
+COVERAGE_MODEL = '''
+## Coverage model and remaining limitations
+
+Final full-dataset counts, providers, model responses, tokens, and costs are recorded in the usage report. Public sample metrics do not establish hidden-test accuracy.
+
+Negative profile checks use complete dedicated SQL snapshots or global assurance exports without filter, pagination, truncation, or partial-scope metadata. All positive profile rows must carry a usable subject identifier. This is a declared-namespace completeness assumption and requires review when adapting to other exporters. Missing matches in an arbitrary file or a filtered query do not establish absence.
+
+When a deleted row's physical resource ID is unrecoverable, negative verification uses the supplied stable user reference as an indexed lookup target. Diagnostics mark these as `subject_lookup`; these references never synthesize destructive record actions. Canonical public answers can use historical physical IDs for which the solver has no grounded identity link, contributing to resource-ID and sequence mismatches.
+
+An available subject-bearing archive in a live recovery manager with restore/drill context is treated as a potential restore path until blocked. This does not assert an unshown operator permission flag, and future restore events are excluded by the cutoff.
+
+Screenshot identifiers are bound to table rows or selected detail panels using local OCR geometry. Activity history does not establish current ownership. Neither unbound native transcript text nor model-returned raw fields can override those subject bindings. Ambiguous flat transcripts remain unlinked until another eligible source supplies the connection.
+
+A successful full run validates schema, allowed operations/states, citation times, step numbers, phase order, and request IDs. Format and grounding checks do not prove hidden accuracy. The artifacts remain drafts while reference and sequence alignment is improved.
+'''
+
 
 def signature(step):
     return tuple(step.get(key) for key in FIELDS)
@@ -88,15 +104,17 @@ Exact steps compare all seven fields with multiplicity. Field accuracy compares 
 
 ## Failures and improvements
 
-Development fixes include normalizing six log layouts, joining identifiers through preceding trace lines, rejecting post-cutoff evidence, distinguishing direct reads from operation claims, and preserving separate replica scopes. Sample sequence mismatches: {len(failures)}. A correct status can still have missing records, different evidence citations, or incorrect verification coverage.
+Development fixes include normalizing six log layouts, joining identifiers through preceding trace lines, rejecting post-cutoff evidence, distinguishing direct reads from operation claims, preserving separate replica scopes, citing current reads, and binding screenshot identifiers to their own row or detail panel. Sample sequence mismatches: {len(failures)}. A correct status can still have missing records, different evidence citations, or incorrect verification coverage.
 
 '''
     text+='\n## Field breakdown\n\n| Field | Matching positions | Accuracy |\n| --- | ---: | ---: |\n'
     for field,count in metrics.get('per_field_matches',{}).items():
         total=metrics['positions_compared']
         text+=f'| {field} | {count}/{total} | {count/total if total else 0:.2%} |\n'
+    text+='\n'
     for row in failures:
         text += f"- {row['case_id']}: {len(row['missing_steps'])} expected steps missing; {len(row['extra_steps'])} extra/different steps.\n"
     text += "\nFull-dataset hidden accuracy is unavailable and is not inferred from valid CSV structure. See the usage report for the measured full run.\n"
+    text += COVERAGE_MODEL
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
