@@ -32,6 +32,7 @@ def compare(prediction_path, reference_path):
     if set(predictions) - {row["case_id"] for row in reference}:
         raise ValueError("Predictions contain case IDs absent from the reference")
     status = sequence = matched = predicted_count = expected_count = field_matches = field_count = 0
+    field_counts={field:0 for field in FIELDS}
     cases = []
     for target in reference:
         prediction = predictions.get(target["case_id"])
@@ -49,6 +50,8 @@ def compare(prediction_path, reference_path):
             actual = actual_steps[index] if index < len(actual_steps) else {}
             expected = expected_steps[index] if index < len(expected_steps) else {}
             field_matches += sum(key in actual and key in expected and actual[key] == expected[key] for key in FIELDS)
+            for key in FIELDS:
+                field_counts[key]+=int(key in actual and key in expected and actual[key]==expected[key])
             field_count += len(FIELDS)
         cases.append({"case_id": target["case_id"], "status_correct": status_ok, "sequence_correct": sequence_ok,
             "missing_steps": [dict(zip(FIELDS, key)) for key in (expected_set - actual_set).elements()],
@@ -59,7 +62,8 @@ def compare(prediction_path, reference_path):
         "step_recall": matched / expected_count if expected_count else 0,
         "field_accuracy": field_matches / field_count if field_count else 0,
         "step_matches": matched, "predicted_steps": predicted_count, "reference_steps": expected_count,
-        "field_matches": field_matches, "field_comparisons": field_count, "details": cases}
+        "field_matches": field_matches, "field_comparisons": field_count,
+        "per_field_matches":field_counts,"positions_compared":field_count//len(FIELDS),"details": cases}
 
 
 def write_evaluation_report(path, metrics, custom_results=CUSTOM_SCENARIOS):
@@ -87,8 +91,12 @@ Exact steps compare all seven fields with multiplicity. Field accuracy compares 
 Development fixes include normalizing six log layouts, joining identifiers through preceding trace lines, rejecting post-cutoff evidence, distinguishing direct reads from operation claims, and preserving separate replica scopes. Sample sequence mismatches: {len(failures)}. A correct status can still have missing records, different evidence citations, or incorrect verification coverage.
 
 '''
+    text+='\n## Field breakdown\n\n| Field | Matching positions | Accuracy |\n| --- | ---: | ---: |\n'
+    for field,count in metrics.get('per_field_matches',{}).items():
+        total=metrics['positions_compared']
+        text+=f'| {field} | {count}/{total} | {count/total if total else 0:.2%} |\n'
     for row in failures:
         text += f"- {row['case_id']}: {len(row['missing_steps'])} expected steps missing; {len(row['extra_steps'])} extra/different steps.\n"
-    text += "\nFull-dataset hidden accuracy is unavailable and is not inferred from valid CSV structure. See the usage report for the latest full-dataset diagnostic; a successful complete prediction run is still required.\n"
+    text += "\nFull-dataset hidden accuracy is unavailable and is not inferred from valid CSV structure. See the usage report for the measured full run.\n"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")

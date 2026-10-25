@@ -18,7 +18,7 @@ class EvidenceIndex:
             for value in observation.identifiers:
                 self.by_identifier[value].append(observation)
 
-    def retrieve(self, subject_ids, cutoff, request=None):
+    def retrieve(self, subject_ids, cutoff, request=None, subject_reference=None):
         resources, observations, links = set(), [], []
         for value in subject_ids:
             for obs in self.by_identifier.get(value, []):
@@ -55,6 +55,19 @@ class EvidenceIndex:
                     observations.append(Observation(table.evidence_id, table.captured_at, table.observed_at,
                         system, resource, table.category, "ABSENT", subject_ids, table.scope,
                         f"{table.scope}:query:{resource}", {"query": resource, "rows": 0}, 4))
+        # A deleted row can lose its physical key while the supplied stable subject
+        # reference remains a valid indexed lookup target. Use it for negative
+        # verification only, never to synthesize a destructive record action.
+        has_profile=any(obs.category=='USER_PROFILE' for obs in observations)
+        if subject_reference and not has_profile:
+            for table in self.extraction.tables:
+                if (table.supports_subject_query and table.category=='USER_PROFILE'
+                    and max(instant(table.captured_at),instant(table.observed_at))<=instant(cutoff)
+                    and not (table.subject_identifiers & subject_ids)):
+                    observations.append(Observation(table.evidence_id,table.captured_at,table.observed_at,
+                        table.system_id,subject_reference,'USER_PROFILE','ABSENT',subject_ids,table.scope,
+                        f'{table.scope}:subject-lookup',{'lookup_reference':subject_reference,
+                        'binding_kind':'subject_lookup','matched_rows':0,'complete_snapshot':True},4))
         return observations, links
 
 

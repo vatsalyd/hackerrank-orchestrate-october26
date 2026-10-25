@@ -30,3 +30,7 @@ class NativeArtifactsTest(unittest.TestCase):
     def test_backup_presence_does_not_claim_restore_permission(self):
         rows=list(native_records('Archives\nbackup_123\nAES-256\nHealthy'))
         self.assertEqual(rows[0]['state'],'PRESENT')
+
+    def test_blocked_recovery_context_does_not_assert_available_restore_path(self):
+        rows=list(native_records('Recovery Manager\nbackup_123\nArchive\nRestore success 99%\nLast drill yesterday\nRestore access blocked'))
+        self.assertFalse(rows[0]['fields'].get('recovery_archive_available'))
