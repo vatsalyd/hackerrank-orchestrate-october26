@@ -97,7 +97,33 @@ class Decision(StrictModel):
         if self.deletion_status == "INCOMPLETE":
             if {s.phase for s in self.steps} != set(OPERATIONS):
                 raise ValueError("Incomplete decisions need all three phases")
+            checks = {"DISABLE_DATA_FLOW":"VERIFY_DATA_FLOW_DISABLED", "BLOCK_RESTORE":"VERIFY_RESTORE_BLOCKED",
+                      "DELETE_RECORD":"VERIFY_RECORD_ABSENT", "REDACT_RECORD":"VERIFY_RECORD_REDACTED",
+                      "ANONYMIZE_RECORD":"VERIFY_RECORD_ANONYMIZED"}
+            for step in self.steps:
+                if step.phase == "REMEDIATION" and not any(s.phase == "VERIFICATION" and
+                    s.system_id == step.system_id and s.resource_id == step.resource_id and
+                    s.operation == checks[step.operation] for s in self.steps):
+                    raise ValueError("Remediation has no matching verification")
+        keys = [(s.phase,s.system_id,s.resource_id,s.operation) for s in self.steps]
+        if len(keys) != len(set(keys)):
+            raise ValueError("Duplicate steps")
         return self
+
+
+class ArtifactRecord(StrictModel):
+    resource_id: str = Field(min_length=1)
+    system_id: str
+    category: str
+    observed_at: str
+    state: Literal["PRESENT", "ABSENT", "IDENTIFIABLE", "REDACTED", "ANONYMIZED", "ACTIVE", "DISABLED", "BLOCKED", "UNKNOWN"]
+    identifiers: list[str]
+    fields: dict[str, Any]
+
+
+class ArtifactResult(StrictModel):
+    text: str
+    records: list[ArtifactRecord]
 
 
 @dataclass(frozen=True)

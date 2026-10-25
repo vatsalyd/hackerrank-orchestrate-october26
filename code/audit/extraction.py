@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .identifiers import identifiers, normalize
 from .llm import ARTIFACT_PROMPT
-from .models import Observation, instant
+from .models import ArtifactResult, Observation, instant
 
 COLLECTIONS = {
     "customer_profiles": ("account_service", "USER_PROFILE"),
@@ -63,9 +63,11 @@ def record_state(record, category):
     if category == "SEARCH_INDEX_ENTRY" and "hits" in record:
         return "PRESENT" if record["hits"] else "ABSENT"
     if category == "DATA_FLOW":
-        return "ACTIVE" if record.get("enabled") else "DISABLED"
+        flag = record.get("enabled")
+        return "ACTIVE" if flag is True else "DISABLED" if flag is False else "UNKNOWN"
     if category == "BACKUP_ARCHIVE":
-        return "ACTIVE" if record.get("restore_allowed") else "BLOCKED"
+        flag = record.get("restore_allowed")
+        return "ACTIVE" if flag is True else "BLOCKED" if flag is False else "UNKNOWN"
     if category in {"ANALYTICS_PROFILE", "PRODUCT_TELEMETRY", "SUPPORT_MESSAGE", "ACCOUNT_TOMBSTONE", "EMAIL_DELIVERY_LOG"}:
         flat = flattened(record)
         keys = {"email", "phone", "email_hash", "name", "full_name", "display_name", "requester_email", "requester_phone", "requester_name"}
@@ -96,12 +98,16 @@ class Extractor:
         self.tables = []
         self.coverage = {}
         self.artifact_text = {}
+        self.skipped = []
 
-    def extract(self):
+    def extract(self, structured_only=False):
         for manifest in self.dataset.manifest:
             file_id = manifest["file_id"]
             path = self.dataset.files[file_id]
             before = len(self.observations)
+            if structured_only and path.suffix in {".pdf", ".png"}:
+                self.skipped.append(file_id)
+                continue
             if path.suffix == ".json":
                 self.json_file(json.loads(path.read_text(encoding="utf-8")), manifest)
             elif path.suffix == ".sql":
@@ -161,6 +167,14 @@ class Extractor:
                 records = [dict(zip(columns, row)) for row in cursor]
                 if "resource_id" not in columns:
                     continue
+                if "record_json" in columns:
+                    for i, wrapper in enumerate(records):
+                        record = json.loads(wrapper["record_json"])
+                        system, category = COLLECTIONS.get(wrapper.get("collection_name"), resource_kind(wrapper["resource_id"]))
+                        system = wrapper.get("origin_system", system)
+                        self.add(manifest, system, wrapper["resource_id"], category, record_state(record, category),
+                                 record, scope=table, location=f"{table}:row:{i + 1}:record_json", strength=4)
+                    continue
                 collection = next((name for name in COLLECTIONS if table.startswith(name)), None)
                 if collection:
                     system, category = COLLECTIONS[collection]
@@ -171,7 +185,10 @@ class Extractor:
                 self.tables.append(TableSnapshot(manifest["file_id"], manifest["captured_at"], manifest["captured_at"],
                     system, category, table, frozenset(row["resource_id"] for row in records)))
                 for i, row in enumerate(records):
-                    self.add(manifest, system, row["resource_id"], category, record_state(row, category), row,
+                    row_system = row.get("system", system)
+                    row_category = row.get("record_type", category)
+                    self.add(manifest, row_system, row["resource_id"], row_category, record_state(row, row_category), row,
+                             row.get("recorded_at", manifest["captured_at"]),
                              scope=table, location=f"{table}:row:{i + 1}", strength=4)
         finally:
             connection.close()
@@ -285,14 +302,17 @@ class Extractor:
             from pypdf import PdfReader
             data["pages"] = [{"page": i, "text": page.extract_text()} for i, page in enumerate(PdfReader(path).pages, 1)]
         result = self.model.json("artifact-extraction-v1", ARTIFACT_PROMPT, data, path if path.suffix == ".png" else None)
+        result = ArtifactResult.model_validate(result).model_dump()
         self.artifact_text[manifest["file_id"]] = result["text"]
         for number, record in enumerate(result["records"], 1):
             resource = record["resource_id"]
             default_system, default_category = resource_kind(resource)
-            system = record.get("system_id") or default_system
+            system = default_system or record.get("system_id")
             category = record.get("category", default_category)
             if not system:
                 system = next((sys for sys, cat in PREFIXES.values() if cat == category), "")
+            if path.suffix == ".pdf" and normalize(resource) not in normalize(" ".join(page["text"] for page in data["pages"])):
+                raise ValueError(f"Model supplied a reference absent from native PDF text: {manifest['file_id']}")
             self.add(manifest, system, resource, category, record["state"], record.get("fields", {}),
                      # Business creation dates are not current-state observation times.
                      manifest["captured_at"], location=f"artifact-record:{number}",
