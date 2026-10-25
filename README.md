@@ -2,7 +2,7 @@
 
 Python deletion auditing at each request's `audit_at`, with grounded identity links, scoped evidence, policy decisions, and ordered remediation/verification.
 
-Current stage: all 518 evaluation requests produce schema-valid draft predictions. Public sample status accuracy is 32/32, positional field accuracy is 79.97%, and exact sequence accuracy is 6/32. Reference alignment remains work in progress. Paid model inference is disabled.
+Current stage: all 518 evaluation requests produce schema-valid draft predictions. Public sample status accuracy is 32/32, positional field accuracy is 80.04%, and exact sequence accuracy is 6/32. Reference alignment remains work in progress. Paid model inference is disabled.
 
 ## Setup
 
