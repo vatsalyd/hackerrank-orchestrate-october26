@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$ImagePath)
+param([Parameter(Mandatory=$true)][string]$ImagePath, [switch]$AsJson)
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
@@ -24,7 +24,14 @@ try {
     $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages()
     if ($null -eq $engine) { throw 'No Windows OCR language is installed.' }
     $result = Resolve-Operation ($engine.RecognizeAsync($bitmap)) ([Windows.Media.Ocr.OcrResult])
-    (@($result.Lines | ForEach-Object { $_.Text }) -join "`n")
+    $text = (@($result.Lines | ForEach-Object { $_.Text }) -join "`n")
+    if ($AsJson) {
+        $words = @($result.Lines | ForEach-Object { $_.Words } | ForEach-Object {
+            @{ text=$_.Text; x=$_.BoundingRect.X; y=$_.BoundingRect.Y;
+               width=$_.BoundingRect.Width; height=$_.BoundingRect.Height }
+        })
+        @{ text=$text; width=$bitmap.PixelWidth; height=$bitmap.PixelHeight; words=$words } | ConvertTo-Json -Depth 4 -Compress
+    } else { $text }
 } finally {
     $stream.Dispose()
 }

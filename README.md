@@ -2,7 +2,7 @@
 
 Python deletion auditing at each request's `audit_at`, with grounded identity links, scoped evidence, policy decisions, and ordered remediation/verification.
 
-Current stage: all 518 evaluation requests produce schema-valid draft predictions. Public sample status accuracy is 32/32, positional field accuracy is 80.04%, and exact sequence accuracy is 6/32. Reference alignment remains work in progress. Paid model inference is disabled.
+Current stage: all 518 evaluation requests produce schema-valid draft predictions. Public sample status accuracy is 32/32, positional field accuracy is 82.59%, and exact sequence accuracy is 7/32. Reference alignment remains work in progress. Paid model inference is disabled.
 
 ## Setup
 
@@ -57,6 +57,12 @@ python code/main.py run --provider openrouter --online --artifact-mode native
 
 A repeated run can omit `--online` and use cached free-model results; cache misses fail. No DeepSeek credential is used. [Free-route guarantees](https://openrouter.ai/docs/guides/routing/model-variants/free).
 
+An already-open PowerShell may not inherit a newly configured Windows user environment variable. Load it into that terminal without displaying it:
+
+```powershell
+$env:OPENROUTER_API_KEY = [Environment]::GetEnvironmentVariable('OPENROUTER_API_KEY', 'User')
+```
+
 ## Output, evaluation, and submission
 
 A successful full `run` writes root `output.csv` only when all 518 cases have supported decisions and valid ordered steps. Failures preserve any older output; do not mistake a pre-existing file for the latest run.
@@ -78,6 +84,7 @@ Packaging refuses missing/incomplete outputs or unfinished reports. The archive 
 - Match current and historical identifiers; names and nearby timestamps alone cannot link resources.
 - Require both capture and observation times to satisfy the cutoff.
 - Preserve replica scope; workflow success does not establish deletion.
+- Bind screenshot identifiers to the selected detail panel or their own table row; unrelated rows and activity history cannot establish ownership.
 - Apply conditional retention, redaction, anonymization, and tombstone rules.
 - Stop unsafe flows/restores before changing dependent records.
 - Keep unresolved identity, state, scope, or policy questions visible rather than fabricating evidence.

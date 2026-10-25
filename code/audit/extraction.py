@@ -137,12 +137,13 @@ class Extractor:
                     system,activity["resource_id"],category,"ACTIVE",activity,location="details:direct-state-check",strength=1)
         return self
 
-    def add(self, manifest, system, resource, category, state, raw, observed=None, scope="", location="", strength=2, extra_ids=()):
+    def add(self, manifest, system, resource, category, state, raw, observed=None, scope="", location="", strength=2, extra_ids=(), read_raw_identifiers=True):
         if not system or not resource or category == "UNKNOWN" or state == "UNKNOWN":
             return
         self.observations.append(Observation(manifest["file_id"], manifest["captured_at"],
             observed or manifest["captured_at"], system, resource, category, state,
-            identifiers(raw) | frozenset(normalize(x) for x in extra_ids if x), scope, location, raw, strength))
+            (identifiers(raw) if read_raw_identifiers else frozenset()) |
+            frozenset(normalize(x) for x in extra_ids if x), scope, location, raw, strength))
 
     def json_file(self, value, manifest, context=None, location="$"):
         context = dict(context or {})
@@ -335,8 +336,12 @@ class Extractor:
 
     def artifact_file(self, path, manifest):
         from .native_artifacts import artifact_text,native_records
-        text=artifact_text(path,self.cache)
-        native=list(native_records(text))
+        layout=None
+        if path.suffix=='.png':
+            from .artifact_layout import image_layout
+            layout=image_layout(path,self.cache)
+        text=layout['text'] if layout else artifact_text(path,self.cache)
+        native=list(native_records(text,layout))
         ambiguous=not native or any(record['state']=='UNKNOWN' or (
             record['category']=='BACKUP_ARCHIVE' and record['state']=='PRESENT'
             and not record['fields'].get('recovery_archive_available')) for record in native)
@@ -345,7 +350,7 @@ class Extractor:
             self.artifact_text[manifest["file_id"]] = text
             for number, record in enumerate(native,1):
                 self.add(manifest, record["system_id"], record["resource_id"], record["category"], record["state"],
-                         record["fields"], location=f"native-artifact:{number}", extra_ids=record["identifiers"])
+                         record["fields"], location=f"native-artifact:{number}", extra_ids=record["identifiers"],read_raw_identifiers=False)
             return
         data = {"capture_time": manifest["captured_at"], "source_origin": manifest["origin"]}
         from .artifact_grounding import literal_resources, ground_records
@@ -365,11 +370,12 @@ class Extractor:
                                 'reason':str(error)})
             for number,record in enumerate(native,1):
                 self.add(manifest,record['system_id'],record['resource_id'],record['category'],record['state'],
-                         record['fields'],location=f'native-artifact:{number}',extra_ids=record['identifiers'])
+                         record['fields'],location=f'native-artifact:{number}',extra_ids=record['identifiers'],read_raw_identifiers=False)
             return
         result = ArtifactResult.model_validate(result).model_dump()
         self.artifact_text[manifest["file_id"]] = result["text"]
-        records,issues=ground_records(result['records'],native_text,resource_kind,primary_only=path.suffix=='.png')
+        records,issues=ground_records(result['records'],native_text,resource_kind,primary_only=path.suffix=='.png',
+            resource_identifiers={record['resource_id']:record['identifiers'] for record in native})
         self.issues.extend({'evidence_id':manifest['file_id'],'issue':issue} for issue in issues)
         for number, record in enumerate(records, 1):
             resource = record["resource_id"]
@@ -383,4 +389,4 @@ class Extractor:
             self.add(manifest, system, resource, category, record["state"], record.get("fields", {}),
                      # Business creation dates are not current-state observation times.
                      manifest["captured_at"], location=f"artifact-record:{number}",
-                     extra_ids=record.get("identifiers", []))
+                     extra_ids=record.get("identifiers", []),read_raw_identifiers=False)

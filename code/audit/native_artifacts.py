@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from .identifiers import identifiers
+from .identifiers import EMAIL, identifiers
 
 
 def artifact_text(path: Path, cache: Path):
@@ -35,7 +35,7 @@ def artifact_text(path: Path, cache: Path):
     return text
 
 
-def native_records(text: str):
+def native_records(text: str, layout=None):
     """Never infer internal IDs from user numbers or artifact filenames."""
     # Whitespace repair preserves a literal visible prefix and number (account _5762).
     clean = re.sub(r"\b(account|analytics|search|support|export|marketing|backup|data_flow|audit_record)\s*_\s*(\d+)\b", r"\1_\2", text)
@@ -60,13 +60,24 @@ def native_records(text: str):
             first = re.search(r"\b" + prefix + r"_\d+\b", clean).start()
             candidates.append((first, refs, category, system, state))
     selected = min(candidates, key=lambda row:row[0])[1:] if candidates else None
+    if layout:
+        from .artifact_layout import subject_bindings
+        bindings=subject_bindings(layout)
+    else:
+        bindings={}
     if selected:
         refs, category, system, state = selected
         for ref in refs:
             # Multiple table rows need row-level identity evidence. Catalog links can bind
             # their literal resource IDs later; do not assign every visible email to every row.
-            ids = identifiers(clean) if len(refs) == 1 else frozenset()
-            fields={"visible_text":clean}
+            binding=bindings.get(ref)
+            # A flat transcript with several emails cannot establish row ownership.
+            ids = (identifiers(clean) if len(refs)==1 and len(set(EMAIL.findall(clean)))<=1 else frozenset())
+            if binding:
+                ids=(ids | binding['identifiers'] if binding['scope']=='table_row' else binding['identifiers'])
+            fields={"visible_text":binding['text'] if binding else clean}
+            if binding:
+                fields['identity_scope']=binding['scope']
             restore_blocked=any(term in lower for term in (
                 'restore blocked','restore access blocked','restore disabled','key destroyed','crypto-erased'))
             if (category=='BACKUP_ARCHIVE' and not restore_blocked

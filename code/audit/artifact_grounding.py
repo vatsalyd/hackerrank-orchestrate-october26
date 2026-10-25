@@ -11,7 +11,7 @@ def literal_resources(text):
     return {match.group() for match in RESOURCE.finditer(text)}
 
 
-def ground_records(records, text, kind_for_resource, primary_only=False):
+def ground_records(records, text, kind_for_resource, primary_only=False, resource_identifiers=None):
     native=list(native_records(text))
     refs=literal_resources(text) | {record['resource_id'] for record in native}
     primary_categories={record['category'] for record in native}
@@ -44,6 +44,8 @@ def ground_records(records, text, kind_for_resource, primary_only=False):
             issues.append('Model category conflicts with the literal resource type')
             continue
         record['resource_id']=resource
+        if resource_identifiers is not None and resource in resource_identifiers:
+            record['identifiers']=sorted(resource_identifiers[resource])
         record['system_id']=system or category_system.get(category) or record['system_id']
         if category in {'USER_PROFILE','SUPPORT_ATTACHMENT','USER_EXPORT','MARKETING_PROFILE','SEARCH_INDEX_ENTRY'} and record['state']=='IDENTIFIABLE':
             record['state']='PRESENT'
