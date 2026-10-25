@@ -1,5 +1,7 @@
 import sys
 import unittest
+import tempfile
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -33,3 +35,14 @@ class ExtractionTest(unittest.TestCase):
         self.assertEqual(obs.state, "ANONYMIZED")
         self.assertEqual(obs.observed_at, "2026-01-01T00:00:00Z")
         self.assertFalse(obs.eligible("2026-01-15T00:00:00Z"))
+
+    def test_sql_json_wrapper_retains_its_real_category(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'snapshot.sql'
+            payload=json.dumps({'resource_id':'analytics_x','user_id':None,'email':None,'phone':None,'email_hash':None})
+            path.write_text("CREATE TABLE customer_data_primary(resource_id TEXT,origin_system TEXT,collection_name TEXT,record_json TEXT);"
+                + "INSERT INTO customer_data_primary VALUES('analytics_x','analytics_platform','customer_analytics_reports','"+payload+"');",encoding='utf-8')
+            extractor=Extractor(SimpleNamespace())
+            extractor.sql_file(path,{'file_id':'e','captured_at':'2026-01-01T00:00:00Z'})
+            self.assertEqual(extractor.observations[0].category,'ANALYTICS_PROFILE')
+            self.assertEqual(extractor.observations[0].state,'ANONYMIZED')

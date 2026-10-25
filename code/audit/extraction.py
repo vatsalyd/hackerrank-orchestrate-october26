@@ -92,13 +92,14 @@ class TableSnapshot:
 
 
 class Extractor:
-    def __init__(self, dataset, model=None):
+    def __init__(self, dataset, model=None, cache=None):
         self.dataset, self.model = dataset, model
         self.observations = []
         self.tables = []
         self.coverage = {}
         self.artifact_text = {}
         self.skipped = []
+        self.cache = cache or Path(".cache")
 
     def extract(self, structured_only=False):
         for manifest in self.dataset.manifest:
@@ -122,6 +123,14 @@ class Extractor:
                 raise ValueError(f"Unsupported evidence format: {path.suffix}")
             self.coverage[file_id] = len(self.observations) - before
             print(f"Extracted {file_id}: {self.coverage[file_id]} observations", flush=True)
+        for activity in self.dataset.activities:
+            kind, text = activity["event_type"], activity["details"].casefold()
+            direct = (kind == "CHECK_DATA_FLOW" and "remains enabled" in text) or (
+                kind == "CHECK_RESTORE_ACCESS" and "can still be restored" in text)
+            if direct:
+                system, category = resource_kind(activity["resource_id"])
+                self.add({"file_id":activity["activity_id"],"captured_at":activity["event_time"]},
+                    system,activity["resource_id"],category,"ACTIVE",activity,location="details:direct-state-check",strength=1)
         return self
 
     def add(self, manifest, system, resource, category, state, raw, observed=None, scope="", location="", strength=2, extra_ids=()):
@@ -296,7 +305,13 @@ class Extractor:
 
     def artifact_file(self, path, manifest):
         if self.model is None:
-            raise ValueError(f"Model adapter required for artifact extraction: {manifest['file_id']}")
+            from .native_artifacts import artifact_text, native_records
+            text = artifact_text(path, self.cache)
+            self.artifact_text[manifest["file_id"]] = text
+            for number, record in enumerate(native_records(text),1):
+                self.add(manifest, record["system_id"], record["resource_id"], record["category"], record["state"],
+                         record["fields"], location=f"native-artifact:{number}", extra_ids=record["identifiers"])
+            return
         data = {"capture_time": manifest["captured_at"], "source_origin": manifest["origin"]}
         if path.suffix == ".pdf":
             from pypdf import PdfReader

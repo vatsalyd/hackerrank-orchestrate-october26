@@ -14,10 +14,14 @@ Do not infer authorization from workflow status. No other fields are supplied.''
 
 def local_intent(text):
     text = unicodedata.normalize("NFKC", text).casefold()
-    negative = (r"\b(?:do not|don't|not asking (?:you )?to|not requesting|without)\s+(?:permanently\s+)?(?:delete|erase|close|remove)",
+    negative = (r"\b(?:do not|don't|never|not asking (?:you )?to|not requesting|without)\s+(?:permanently\s+)?(?:delete|erase|close|remove)",
                 r"\b(?:unsubscribe|opt.out|marketing|newsletter)\b", r"\b(?:export|download|copy of my data|correct|update my)\b")
     positive = r"\b(?:delet\w*|eras\w*|elimin\w*|supprim\w*|suppression|löschen|loesch\w*|borrar|apagar|excluir)\b"
     if re.search(negative[0], text):
+        return False
+    if re.search(r"\b(?:do not|don't|not)\s+(?:want|authorize|request|asking for)\s+(?:any\s+|a\s+)?(?:account\s+)?(?:deletion|erasure)",text):
+        return False
+    if re.search(r"\b(?:how (?:do|can) i|what (?:does|happens)|tell me about)\b",text):
         return False
     has_positive = bool(re.search(positive, text))
     if has_positive:

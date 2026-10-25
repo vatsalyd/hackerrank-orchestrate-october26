@@ -41,6 +41,8 @@ class Policy:
                 raise UnresolvedCase("Missing backup retention rule")
             if raw.get("restore_can_be_blocked") is False:
                 raise UnresolvedCase("Backup restore cannot be blocked under the supplied conditional rule")
+            if state not in {"ACTIVE", "BLOCKED"}:
+                raise UnresolvedCase("Backup existence does not establish restore permission")
             return Treatment(state == "BLOCKED", "VERIFY_RESTORE_BLOCKED", "REPORT_RESTORE_RISK", "BLOCK_RESTORE")
         rule = self.rules.get(category)
         if not rule:

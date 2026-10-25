@@ -42,6 +42,7 @@ class EvidenceIndex:
             target = aliases.get(normalize(obs.resource_id))
             if target and obs.eligible(cutoff):
                 observations.append(replace(obs, system_id=target[0], resource_id=target[1]))
+                resources.discard((obs.system_id, obs.resource_id))
                 resources.add(target)
         for resource in sorted(resources):
             observations.extend(obs for obs in self.by_resource.get(resource, []) if obs.eligible(cutoff))
@@ -60,7 +61,12 @@ class EvidenceIndex:
 def reconstruct(observations):
     """Latest direct state for each concrete scope; preserve independent replica state."""
     scoped = defaultdict(list)
+    known_restore = {(obs.system_id,obs.resource_id) for obs in observations
+        if obs.category == "BACKUP_ARCHIVE" and obs.state in {"ACTIVE","BLOCKED"}}
     for obs in observations:
+        if obs.category == "BACKUP_ARCHIVE" and obs.state == "PRESENT" and (obs.system_id,obs.resource_id) in known_restore:
+            # Archive presence is not a later change to restore authorization.
+            continue
         # Replica-specific evidence remains independent of a primary/generic read.
         scope = obs.scope if "replica" in obs.scope else ""
         scoped[(obs.system_id, obs.resource_id, scope)].append(obs)
